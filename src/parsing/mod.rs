@@ -34,6 +34,13 @@ pub trait PestParser: Sized {
     fn report_unexpected_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> ! {
         panic!("in {}: unexpected pair found: {pair}", type_name::<Self>())
     }
+
+    fn report_invalid_function_signature() -> ! {
+        panic!(
+            "in {}: the predefined function (abs) has an invalid number of arguments",
+            type_name::<Self>()
+        )
+    }
 }
 
 impl<T: PestParser> Parser for T {

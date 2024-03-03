@@ -41,13 +41,17 @@ basic_integer_term = { numeral | integer_variable | infimum | supremum }
 unary_operator = _{ negative }
     negative = { !numeral ~ "-" }
 
+function_symbol = _{ absolute }
+    absolute = { "abs" }
+
 binary_operator = _{ add | subtract | multiply }
     add      = { "+" }
     subtract = { "-" }
     multiply = { "*" }
 
 integer_term = { unary_operator* ~ n_primary ~ (binary_operator ~ unary_operator* ~ n_primary)* }
-    n_primary = _{ basic_integer_term | "(" ~ integer_term ~ ")" }
+    n_primary = _{ basic_integer_term | function | "(" ~ integer_term ~ ")" }
+    function  = { function_symbol ~ "(" ~ integer_term ~ ("," ~ integer_term)? ~ ")" }
 
 general_term = { integer_term | symbolic_constant | general_variable }
     symbolic_constant = @{ !keyword ~ "_"? ~ ASCII_ALPHA_LOWER ~ (ASCII_ALPHANUMERIC | "_")* }

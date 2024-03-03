@@ -68,6 +68,7 @@ impl Display for Format<'_, IntegerTerm> {
                 let rhs = Format(rhs.as_ref());
                 write!(f, "{op}({lhs}, {rhs})")
             }
+            _ => todo!(),
         }
     }
 }

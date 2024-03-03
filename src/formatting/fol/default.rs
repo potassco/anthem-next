@@ -4,8 +4,9 @@ use {
         syntax_tree::{
             fol::{
                 Atom, AtomicFormula, BasicIntegerTerm, BinaryConnective, BinaryOperator,
-                Comparison, Formula, GeneralTerm, Guard, IntegerTerm, Predicate, Quantification,
-                Quantifier, Relation, Sort, Theory, UnaryConnective, UnaryOperator, Variable,
+                Comparison, Formula, Function, FunctionSymbol, GeneralTerm, Guard, IntegerTerm,
+                Predicate, Quantification, Quantifier, Relation, Sort, Theory, UnaryConnective,
+                UnaryOperator, Variable,
             },
             Node,
         },
@@ -34,6 +35,14 @@ impl Display for Format<'_, UnaryOperator> {
     }
 }
 
+impl Display for Format<'_, FunctionSymbol> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            FunctionSymbol::AbsoluteValue => write!(f, "abs"),
+        }
+    }
+}
+
 impl Display for Format<'_, BinaryOperator> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.0 {
@@ -49,20 +58,21 @@ impl Format<'_, IntegerTerm> {}
 impl Precedence for Format<'_, IntegerTerm> {
     fn precedence(&self) -> usize {
         match self.0 {
-            IntegerTerm::BasicIntegerTerm(BasicIntegerTerm::Numeral(1..)) => 1,
+            IntegerTerm::Function(_) => 0,
+            IntegerTerm::BasicIntegerTerm(BasicIntegerTerm::Numeral(1..)) => 2,
             IntegerTerm::UnaryOperation {
                 op: UnaryOperator::Negative,
                 ..
             }
-            | IntegerTerm::BasicIntegerTerm(_) => 0,
+            | IntegerTerm::BasicIntegerTerm(_) => 1,
             IntegerTerm::BinaryOperation {
                 op: BinaryOperator::Multiply,
                 ..
-            } => 2,
+            } => 3,
             IntegerTerm::BinaryOperation {
                 op: BinaryOperator::Add | BinaryOperator::Subtract,
                 ..
-            } => 3,
+            } => 4,
         }
     }
 
@@ -72,6 +82,7 @@ impl Precedence for Format<'_, IntegerTerm> {
 
     fn fmt_operator(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.0 {
+            IntegerTerm::Function(Function { symbol, .. }) => write!(f, "{}", Format(symbol)),
             IntegerTerm::UnaryOperation { op, .. } => write!(f, "{}", Format(op)),
             IntegerTerm::BinaryOperation { op, .. } => write!(f, " {} ", Format(op)),
             IntegerTerm::BasicIntegerTerm(_) => unreachable!(),
@@ -83,6 +94,9 @@ impl Display for Format<'_, IntegerTerm> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.0 {
             IntegerTerm::BasicIntegerTerm(t) => Format(t).fmt(f),
+            IntegerTerm::Function(fun) => match fun.symbol {
+                FunctionSymbol::AbsoluteValue => self.fmt_unary(Format(&fun.terms[0]), f),
+            },
             IntegerTerm::UnaryOperation { arg, .. } => self.fmt_unary(Format(arg.as_ref()), f),
             IntegerTerm::BinaryOperation { lhs, rhs, .. } => {
                 self.fmt_binary(Format(lhs.as_ref()), Format(rhs.as_ref()), f)
@@ -115,6 +129,27 @@ impl Display for Format<'_, Atom> {
         let terms = &self.0.terms;
 
         write!(f, "{predicate}")?;
+
+        if !terms.is_empty() {
+            let mut iter = terms.iter().map(Format);
+            write!(f, "({}", iter.next().unwrap())?;
+            for term in iter {
+                write!(f, ", {term}")?;
+            }
+            write!(f, ")")?;
+        }
+
+        Ok(())
+    }
+}
+
+// TODO - zero-arity function constants shouldn't be supported
+impl Display for Format<'_, Function> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let function = &self.0.symbol;
+        let terms = &self.0.terms;
+
+        write!(f, "{function}")?;
 
         if !terms.is_empty() {
             let mut iter = terms.iter().map(Format);
@@ -332,8 +367,8 @@ mod tests {
         formatting::fol::default::Format,
         syntax_tree::fol::{
             Atom, AtomicFormula, BasicIntegerTerm, BinaryConnective, BinaryOperator, Comparison,
-            Formula, GeneralTerm, Guard, IntegerTerm, Quantification, Quantifier, Relation, Sort,
-            UnaryConnective, Variable,
+            Formula, Function, FunctionSymbol, GeneralTerm, Guard, IntegerTerm, Quantification,
+            Quantifier, Relation, Sort, UnaryConnective, Variable,
         },
     };
 
@@ -358,6 +393,19 @@ mod tests {
             ))
             .to_string(),
             "N$i"
+        );
+        assert_eq!(
+            Format(&GeneralTerm::IntegerTerm(IntegerTerm::BinaryOperation {
+                op: BinaryOperator::Subtract,
+                lhs: IntegerTerm::BasicIntegerTerm(BasicIntegerTerm::Numeral(3)).into(),
+                rhs: IntegerTerm::Function(Function {
+                    symbol: FunctionSymbol::AbsoluteValue,
+                    terms: vec![IntegerTerm::BasicIntegerTerm(BasicIntegerTerm::Numeral(-1))],
+                })
+                .into()
+            }))
+            .to_string(),
+            "3 - abs(-1)"
         );
         assert_eq!(
             Format(&GeneralTerm::Symbol("abc".into())).to_string(),

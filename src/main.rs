@@ -10,7 +10,7 @@ use {
     crate::{
         command_line::{Arguments, Command, Translation},
         syntax_tree::{asp, fol},
-        translating::tau_star::tau_star,
+        translating::tau_star_v1::tau_star,
     },
     anyhow::{Context, Result},
     clap::Parser as _,

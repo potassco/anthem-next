@@ -3,10 +3,10 @@ use {
         formatting::fol::default::Format,
         parsing::fol::pest::{
             AtomParser, AtomicFormulaParser, BasicIntegerTermParser, BinaryConnectiveParser,
-            BinaryOperatorParser, ComparisonParser, FormulaParser, GeneralTermParser, GuardParser,
-            IntegerTermParser, PredicateParser, QuantificationParser, QuantifierParser,
-            RelationParser, TheoryParser, UnaryConnectiveParser, UnaryOperatorParser,
-            VariableParser,
+            BinaryOperatorParser, ComparisonParser, FormulaParser, FunctionParser,
+            FunctionSymbolParser, GeneralTermParser, GuardParser, IntegerTermParser,
+            PredicateParser, QuantificationParser, QuantifierParser, RelationParser, TheoryParser,
+            UnaryConnectiveParser, UnaryOperatorParser, VariableParser,
         },
         syntax_tree::{impl_node, Node},
     },
@@ -43,6 +43,13 @@ pub enum UnaryOperator {
 impl_node!(UnaryOperator, Format, UnaryOperatorParser);
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum FunctionSymbol {
+    AbsoluteValue,
+}
+
+impl_node!(FunctionSymbol, Format, FunctionSymbolParser);
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum BinaryOperator {
     Add,
     Subtract,
@@ -54,6 +61,7 @@ impl_node!(BinaryOperator, Format, BinaryOperatorParser);
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum IntegerTerm {
     BasicIntegerTerm(BasicIntegerTerm),
+    Function(Function),
     UnaryOperation {
         op: UnaryOperator,
         arg: Box<IntegerTerm>,
@@ -71,6 +79,7 @@ impl IntegerTerm {
     pub fn variables(&self) -> HashSet<Variable> {
         match &self {
             IntegerTerm::BasicIntegerTerm(t) => t.variables(),
+            IntegerTerm::Function(f) => f.variables(),
             IntegerTerm::UnaryOperation { arg: t, .. } => t.variables(),
             IntegerTerm::BinaryOperation { lhs, rhs, .. } => {
                 let mut vars = lhs.variables();
@@ -90,6 +99,16 @@ impl IntegerTerm {
                 }
                 _ => IntegerTerm::BasicIntegerTerm(t),
             },
+            IntegerTerm::Function(Function { symbol, terms }) => {
+                let mut subbed = vec![];
+                for t in terms.iter() {
+                    subbed.push(t.clone().substitute(var.clone(), term.clone()));
+                }
+                IntegerTerm::Function(Function {
+                    symbol,
+                    terms: subbed,
+                })
+            }
             IntegerTerm::UnaryOperation { op, arg } => IntegerTerm::UnaryOperation {
                 op,
                 arg: arg.substitute(var, term).into(),
@@ -135,6 +154,20 @@ impl GeneralTerm {
             },
             t => t,
         }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Function {
+    pub symbol: FunctionSymbol,
+    pub terms: Vec<IntegerTerm>,
+}
+
+impl_node!(Function, Format, FunctionParser);
+
+impl Function {
+    pub fn variables(&self) -> HashSet<Variable> {
+        todo!()
     }
 }
 
