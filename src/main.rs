@@ -19,6 +19,18 @@ use {
 };
 
 fn main() -> Result<()> {
+    let p1: Result<asp::Program, _> = "p(X) :- q(X++1), not r(X). \nq(X) :- not r(X).".parse();
+    match p1 {
+        Err(e) => {
+            let s = e.line();
+            let r1: Result<asp::Rule, _> = s.parse();
+            match r1 {
+                Err(e1) => println!("{e1}"),
+                _ => todo!(),
+            }
+        },
+        _ => todo!(),
+    }
     match Arguments::parse().command {
         Command::Translate { with, input } => {
             let content = read_to_string(&input)
