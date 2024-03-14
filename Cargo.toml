@@ -15,6 +15,7 @@ license = "MIT"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+indexmap = "2"
 lazy_static = "1"
 pest = "2"
 pest_derive = "2"

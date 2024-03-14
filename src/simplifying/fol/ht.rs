@@ -6,11 +6,11 @@ use crate::{
     syntax_tree::fol::{AtomicFormula, BinaryConnective, Formula},
 };
 
-pub fn simplify(formula: Formula) -> Formula {
-    formula.apply(&mut simplify_outer)
+pub fn basic_simplify(formula: Formula) -> Formula {
+    formula.apply(&mut basic_simplify_outer)
 }
 
-pub fn simplify_outer(formula: Formula) -> Formula {
+pub fn basic_simplify_outer(formula: Formula) -> Formula {
     // TODO: Split simplifications into multiple functions?
 
     match formula.unbox() {
@@ -93,7 +93,7 @@ pub fn simplify_outer(formula: Formula) -> Formula {
 
 #[cfg(test)]
 mod tests {
-    use super::{simplify, simplify_outer};
+    use super::{basic_simplify, basic_simplify_outer};
 
     #[test]
     fn test_simplify() {
@@ -111,7 +111,10 @@ mod tests {
             ("#true and #true and a", "a"),
             ("#true and (#true and a)", "a"),
         ] {
-            assert_eq!(simplify(src.parse().unwrap()), target.parse().unwrap())
+            assert_eq!(
+                basic_simplify(src.parse().unwrap()),
+                target.parse().unwrap()
+            )
         }
     }
 
@@ -132,7 +135,7 @@ mod tests {
             ("(#true and #true) and a", "(#true and #true) and a"),
         ] {
             assert_eq!(
-                simplify_outer(src.parse().unwrap()),
+                basic_simplify_outer(src.parse().unwrap()),
                 target.parse().unwrap()
             )
         }

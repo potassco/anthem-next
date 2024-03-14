@@ -27,6 +27,7 @@ pub enum Command {
 pub enum Translation {
     Gamma,
     TauStar,
+    Completion,
 }
 
 #[cfg(test)]
