@@ -2,6 +2,7 @@ pub mod command_line;
 pub mod convenience;
 pub mod formatting;
 pub mod parsing;
+pub mod problem_building;
 pub mod simplifying;
 pub mod syntax_tree;
 pub mod translating;
@@ -9,7 +10,11 @@ pub mod translating;
 use {
     crate::{
         command_line::{Arguments, Command, Translation},
-        syntax_tree::{asp, fol},
+        problem_building::Problem,
+        syntax_tree::{
+            asp,
+            fol::{self, Theory},
+        },
         translating::tau_star::tau_star,
     },
     anyhow::{Context, Result},
@@ -45,6 +50,35 @@ fn main() -> Result<()> {
                     print!("{theory}")
                 }
             }
+
+            Ok(())
+        }
+
+        Command::BuildProblem {
+            axioms,
+            conjectures,
+        } => {
+            let axioms_string = read_to_string(&axioms)
+                .with_context(|| format!("could not read file `{}`", axioms.display()))?;
+
+            let conjectures_string = read_to_string(&conjectures)
+                .with_context(|| format!("could not read file `{}`", conjectures.display()))?;
+
+            let axioms_program = axioms_string
+                .parse()
+                .with_context(|| format!("could not parse file `{}`", axioms.display()))?;
+
+            let conjectures_program = conjectures_string
+                .parse()
+                .with_context(|| format!("could not parse file `{}`", conjectures.display()))?;
+
+            let problem = Problem::from_parts(
+                gamma(tau_star(axioms_program)),
+                Theory::empty(),
+                gamma(tau_star(conjectures_program)),
+            );
+
+            print!("{problem}");
 
             Ok(())
         }

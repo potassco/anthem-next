@@ -113,6 +113,13 @@ pub enum GeneralTerm {
 impl_node!(GeneralTerm, Format, GeneralTermParser);
 
 impl GeneralTerm {
+    pub fn symbols(&self) -> HashSet<String> {
+        match &self {
+            GeneralTerm::Symbol(s) => HashSet::from([s.clone()]),
+            GeneralTerm::GeneralVariable(_) | GeneralTerm::IntegerTerm(_) => HashSet::new(),
+        }
+    }
+
     pub fn variables(&self) -> HashSet<Variable> {
         match &self {
             GeneralTerm::Infimum | GeneralTerm::Supremum | GeneralTerm::Symbol(_) => HashSet::new(),
@@ -200,6 +207,10 @@ pub struct Guard {
 impl_node!(Guard, Format, GuardParser);
 
 impl Guard {
+    pub fn symbols(&self) -> HashSet<String> {
+        self.term.symbols()
+    }
+
     pub fn variables(&self) -> HashSet<Variable> {
         self.term.variables()
     }
@@ -257,6 +268,26 @@ impl AtomicFormula {
                     vars.extend(guard.variables())
                 }
                 vars
+            }
+        }
+    }
+
+    pub fn symbols(&self) -> HashSet<String> {
+        match &self {
+            AtomicFormula::Falsity | AtomicFormula::Truth => HashSet::new(),
+            AtomicFormula::Atom(a) => {
+                let mut symbols = HashSet::new();
+                for t in a.terms.iter() {
+                    symbols.extend(t.symbols());
+                }
+                symbols
+            }
+            AtomicFormula::Comparison(c) => {
+                let mut symbols = c.term.symbols();
+                for guard in c.guards.iter() {
+                    symbols.extend(guard.symbols())
+                }
+                symbols
             }
         }
     }
@@ -435,6 +466,19 @@ impl Formula {
         }
     }
 
+    pub fn symbols(&self) -> HashSet<String> {
+        match &self {
+            Formula::AtomicFormula(f) => f.symbols(),
+            Formula::UnaryFormula { formula, .. } => formula.symbols(),
+            Formula::BinaryFormula { lhs, rhs, .. } => {
+                let mut vars = lhs.symbols();
+                vars.extend(rhs.symbols());
+                vars
+            }
+            Formula::QuantifiedFormula { formula, .. } => formula.symbols(),
+        }
+    }
+
     pub fn predicates(&self) -> HashSet<Predicate> {
         match &self {
             Formula::AtomicFormula(f) => f.predicates(),
@@ -489,6 +533,14 @@ pub struct Theory {
 }
 
 impl_node!(Theory, Format, TheoryParser);
+
+impl Theory {
+    pub fn empty() -> Self {
+        Theory {
+            formulas: Vec::new(),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

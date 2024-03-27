@@ -21,6 +21,14 @@ pub enum Command {
         /// The file to translate
         input: PathBuf,
     },
+
+    BuildProblem {
+        #[arg(long)]
+        axioms: PathBuf,
+
+        #[arg(long)]
+        conjectures: PathBuf,
+    },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
