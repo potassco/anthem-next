@@ -1,8 +1,19 @@
-// Grammar for two-sorted target language (specifications, lemmas, user guides, etc.).
-// X$i denotes variable X of sort integer, X$g denotes variable of sort general.
-// Unsorted variables are assumed to be of sort general.
-// Distinguishes between integer and general terms, variables, etc.
-// Both of these are distinct from program terms, variables, etc.
+// Grammar for three-sorted target language (formulas, theories)
+// and enclosing control language for formulating claims (specifications, lemmas, user guides, etc.).
+
+//////// Target Language ////////
+
+// General supersort has non-overlapping subsorts Symbol and Integer
+// X$g denotes variable X of sort General, as does X
+// X$i denotes variable X of sort Integer, as does X$
+// X$s denotes variable X of sort Symbol
+
+// Integers (-1,0,1,2,3,..) and symbols (a,b,c,...) are assumed to be later treated in a Herbrand way
+// Thus they are syntactically distinct from non-Herbrand zero-arity function constants:
+// x$g denotes a function constant x of sort General
+// x$i denotes a function constant x of sort Integer
+// x$s denotes a function constant x of sort Symbol
+
 // This language is NOT a subset of TPTP BNF, but formulas written in this language.
 // can be transformed into TPTP formulas (Vampire-compatible input).
 
@@ -93,5 +104,38 @@ formula = { prefix* ~ primary ~ (infix ~ prefix* ~ primary)* }
     infix   = _{ binary_connective }
     primary = _{ "(" ~ formula ~ ")" | atomic_formula }
 
-// TODO: Think about a proper way to handle the whitespace at the end of programs
 theory = { (formula ~ ".")* ~ WHITESPACE* }
+
+///////// End of FOL Language /////////
+
+///////// Start of Control Language /////////
+
+// Allows users to define function constants (placeholders) as inputs
+// Allows users to specify how formulas should be used via roles and directions
+
+role = { assumption | conjecture | definition | lemma | inductive_lemma }
+    assumption       = { "assumption" }
+    conjecture       = { "conjecture" }
+    definition       = { "definition" }
+    lemma            = { "lemma" }
+    inductive_lemma  = { "inductive-lemma" }
+
+direction = { forward | backward | universal }
+    forward   = { "(forward)" }
+    backward  = { "(backward)" }
+    universal = { "(universal)" }
+
+formula_name = { "[" ~ symbolic_constant ~ "]" }
+
+annotated_formula = { role ~ direction? ~ formula_name? ~ ":" ~ formula ~ "." }
+
+specification = { (annotated_formula ~ ".")* ~ WHITESPACE* }
+
+placeholder = _{ symbolic_function_constant | integer_function_constant | general_function_constant }
+
+spec = { input | output | placeholder_declaration | annotated_formula }
+    input                   = { "input:" ~ predicate ~ ("," ~ predicate)* ~ "." }
+    output                  = { "output:" ~ predicate ~ ("," ~ predicate)* ~ "." }
+    placeholder_declaration = { "input:" ~ placeholder ~ ("," ~ placeholder)* ~ "." }
+
+user_guide = { (spec ~ ".")* ~ WHITESPACE* }

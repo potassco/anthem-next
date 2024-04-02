@@ -634,6 +634,93 @@ pub struct Theory {
 
 impl_node!(Theory, Format, TheoryParser);
 
+///////// End of FOL Language /////////
+
+
+
+
+
+
+///////// Start of Control Language /////////
+
+/// A Role dictates how a formula is used within a verification task
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Role {
+    Assumption,
+    Conjecture,
+    Definition,
+    Lemma,
+    InductiveLemma,
+}
+
+impl_node!(Role, Format, RoleParser);
+
+/// The Direction dictates which direction of an equivalence verification
+/// task a formula should be used within
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Direction {
+    Forward,
+    Backward,
+    Universal,
+}
+
+impl_node!(Direction, Format, DirectionParser);
+
+/// An AnnotatedFormula can be optionally named
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct FormulaName(pub Option<String>);
+
+impl_node!(FormulaName, Format, FormulaNameParser);
+
+/// A Claim is composed of AnnotatedFormulas
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct AnnotatedFormula {
+    pub role: Role,
+    pub direction: Direction,
+    pub name: FormulaName,
+    pub formula: Formula,
+}
+
+impl_node!(AnnotatedFormula, Format, AnnotatedFormulaParser);
+
+/// A User Guide contains Placeholder Declarations, input/output Predicates, and
+/// certain universal assumptions of a verification task
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct UserGuide {
+    pub input_predicates: Vec<Predicate>,
+    pub output_predicates: Vec<Predicate>,
+    pub placeholders: Vec<FunctionConstant>,
+    pub assumptions: Vec<AnnotatedFormula>,
+}
+
+impl_node!(UserGuide, Format, UserGuideParser);
+
+/// User Guides are lists of Specs.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Spec {
+    Input { predicates: Vec<Predicate> },
+    Output { predicates: Vec<Predicate> },
+    PlaceholderDeclaration { placeholders: Vec<FunctionConstant> },
+    AnnotatedFormula(AnnotatedFormula),
+}
+
+impl_node!(Spec, Format, SpecParser);
+
+/// A Specification defines additional assumptions and
+/// the conjectures against which a program is compared.
+/// It can also contain proof outline instructions (such as Definitions and Inductions),
+/// thus all helper files are Specifications.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Specification {
+    pub formulas: Vec<AnnotatedFormula>,
+}
+
+impl_node!(Specification, Format, SpecificationParser);
+
+
+
+
+
 #[cfg(test)]
 mod tests {
     use super::Formula;
