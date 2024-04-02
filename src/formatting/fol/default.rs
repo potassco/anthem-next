@@ -3,10 +3,11 @@ use {
         formatting::{Associativity, Precedence},
         syntax_tree::{
             fol::{
-                Atom, AtomicFormula, BinaryConnective, BinaryOperator, Comparison, Formula,
-                FunctionConstant, GeneralTerm, Guard, IntegerTerm, Predicate, Quantification,
-                Quantifier, Relation, Sort, SymbolicTerm, Theory, UnaryConnective, UnaryOperator,
-                Variable,
+                AnnotatedFormula, Atom, AtomicFormula, BinaryConnective, BinaryOperator,
+                Comparison, Direction, Formula, FormulaName, FunctionConstant, GeneralTerm, Guard,
+                IntegerTerm, Placeholder, Predicate, Quantification, Quantifier, Relation, Role,
+                Sort, Spec, Specification, SymbolicTerm, Theory, UnaryConnective, UnaryOperator,
+                UserGuide, Variable,
             },
             Node,
         },
@@ -363,10 +364,10 @@ impl Display for Format<'_, Placeholder> {
         let name = &self.0.name;
         let sort = &self.0.sort;
 
-        // TODO - does this really make sense?
         match sort {
-            Sort::General => write!(f, "{name}"),
-            Sort::Integer => write!(f, "{name}"),
+            Sort::General => write!(f, "{name}$g"),
+            Sort::Integer => write!(f, "{name}$i"),
+            Sort::Symbol => write!(f, "{name}$s"),
         }
     }
 }
@@ -439,8 +440,9 @@ impl Display for Format<'_, Spec> {
                 for place in placeholders.iter() {
                     let name = &place.name;
                     match place.sort {
-                        Sort::General => writeln!(f, "input: {name} -> general."),
-                        Sort::Integer => writeln!(f, "input: {name} -> integer."),
+                        Sort::General => writeln!(f, "input: {name}$g."),
+                        Sort::Integer => writeln!(f, "input: {name}$i."),
+                        Sort::Symbol => writeln!(f, "input: {name}$s."),
                     }?
                 }
                 Ok(())
