@@ -590,6 +590,352 @@ impl PestParser for TheoryParser {
     }
 }
 
+
+
+
+///////////////////// End of target language
+
+
+
+
+
+
+
+pub struct PlaceholderParser;
+
+impl PestParser for PlaceholderParser {
+    type Node = Placeholder;
+
+    type InternalParser = internal::Parser;
+    type Rule = internal::Rule;
+    const RULE: Self::Rule = internal::Rule::placeholder;
+
+    fn translate_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> Self::Node {
+        match pair.as_rule() {
+            internal::Rule::placeholder => PlaceholderParser::translate_pairs(pair.into_inner()),
+            internal::Rule::integer_placeholder => match pair.into_inner().next() {
+                Some(pair) if pair.as_rule() == internal::Rule::symbolic_constant => Placeholder {
+                    name: pair.as_str().into(),
+                    sort: Sort::Integer,
+                },
+                Some(pair) => Self::report_unexpected_pair(pair),
+                None => Self::report_missing_pair(),
+            },
+            internal::Rule::general_placeholder => match pair.into_inner().next() {
+                Some(pair) if pair.as_rule() == internal::Rule::symbolic_constant => Placeholder {
+                    name: pair.as_str().into(),
+                    sort: Sort::General,
+                },
+                Some(pair) => Self::report_unexpected_pair(pair),
+                None => Self::report_missing_pair(),
+            },
+            _ => Self::report_unexpected_pair(pair),
+        }
+    }
+}
+
+
+
+
+pub struct RoleParser;
+
+impl PestParser for RoleParser {
+    type Node = Role;
+
+    type InternalParser = internal::Parser;
+    type Rule = internal::Rule;
+    const RULE: Self::Rule = internal::Rule::role;
+
+    fn translate_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> Self::Node {
+        match pair.as_rule() {
+            internal::Rule::role => RoleParser::translate_pairs(pair.into_inner()),
+            internal::Rule::assumption => Role::Assumption,
+            internal::Rule::conjecture => Role::Conjecture,
+            internal::Rule::definition => Role::Definition,
+            internal::Rule::lemma => Role::Lemma,
+            internal::Rule::inductive_lemma => Role::InductiveLemma,
+            _ => Self::report_unexpected_pair(pair),
+        }
+    }
+}
+
+pub struct DirectionParser;
+
+impl PestParser for DirectionParser {
+    type Node = Direction;
+
+    type InternalParser = internal::Parser;
+    type Rule = internal::Rule;
+    const RULE: Self::Rule = internal::Rule::direction;
+
+    fn translate_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> Self::Node {
+        match pair.as_rule() {
+            internal::Rule::direction => DirectionParser::translate_pairs(pair.into_inner()),
+            internal::Rule::forward => Direction::Forward,
+            internal::Rule::backward => Direction::Backward,
+            internal::Rule::universal => Direction::Universal,
+            _ => Self::report_unexpected_pair(pair),
+        }
+    }
+}
+
+pub struct FormulaNameParser;
+
+impl PestParser for FormulaNameParser {
+    type Node = FormulaName;
+
+    type InternalParser = internal::Parser;
+    type Rule = internal::Rule;
+    const RULE: Self::Rule = internal::Rule::formula_name;
+
+    fn translate_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> Self::Node {
+        if pair.as_rule() != internal::Rule::formula_name {
+            Self::report_unexpected_pair(pair)
+        }
+
+        let mut pairs = pair.into_inner();
+
+        let name_candidate = pairs.next().unwrap_or_else(|| Self::report_missing_pair());
+        let name = match name_candidate.as_rule() {
+            internal::Rule::symbolic_constant => Some(name_candidate.as_str().into()),
+            _ => None,
+        };
+
+        FormulaName(name)
+    }
+}
+
+pub struct AnnotatedFormulaParser;
+
+impl PestParser for AnnotatedFormulaParser {
+    type Node = AnnotatedFormula;
+
+    type InternalParser = internal::Parser;
+    type Rule = internal::Rule;
+    const RULE: Self::Rule = internal::Rule::annotated_formula;
+
+    fn translate_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> Self::Node {
+        match pair.as_rule() {
+            internal::Rule::annotated_formula => {
+                let mut pairs = pair.into_inner();
+
+                let role = RoleParser::translate_pair(
+                    pairs.next().unwrap_or_else(|| Self::report_missing_pair()),
+                );
+
+                let next_pair = pairs.next().unwrap_or_else(|| Self::report_missing_pair());
+
+                let mut formula_name = FormulaName(None); // Defaults
+                let mut direction = Direction::Universal;
+
+                let formula = match next_pair.as_rule() {
+                    internal::Rule::direction => {
+                        direction = DirectionParser::translate_pair(next_pair);
+                        let third_pair =
+                            pairs.next().unwrap_or_else(|| Self::report_missing_pair());
+                        match third_pair.as_rule() {
+                            internal::Rule::formula_name => {
+                                formula_name = FormulaNameParser::translate_pair(third_pair);
+                                let last_pair =
+                                    pairs.next().unwrap_or_else(|| Self::report_missing_pair());
+                                match last_pair.as_rule() {
+                                    internal::Rule::formula => {
+                                        FormulaParser::translate_pair(last_pair)
+                                    }
+                                    _ => Self::report_unexpected_pair(last_pair),
+                                }
+                            }
+                            internal::Rule::formula => FormulaParser::translate_pair(third_pair),
+                            _ => Self::report_unexpected_pair(third_pair),
+                        }
+                    }
+                    internal::Rule::formula_name => {
+                        formula_name = FormulaNameParser::translate_pair(next_pair);
+                        let third_pair =
+                            pairs.next().unwrap_or_else(|| Self::report_missing_pair());
+                        match third_pair.as_rule() {
+                            internal::Rule::formula => FormulaParser::translate_pair(third_pair),
+                            _ => Self::report_unexpected_pair(third_pair),
+                        }
+                    }
+                    internal::Rule::formula => FormulaParser::translate_pair(next_pair),
+                    _ => Self::report_unexpected_pair(next_pair),
+                };
+
+                AnnotatedFormula {
+                    role,
+                    direction,
+                    name: formula_name,
+                    formula,
+                }
+            }
+            _ => Self::report_unexpected_pair(pair),
+        }
+    }
+}
+
+pub struct SpecificationParser;
+
+impl PestParser for SpecificationParser {
+    type Node = Specification;
+
+    type InternalParser = internal::Parser;
+    type Rule = internal::Rule;
+    const RULE: Self::Rule = internal::Rule::specification;
+
+    fn translate_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> Self::Node {
+        if pair.as_rule() != internal::Rule::specification {
+            Self::report_unexpected_pair(pair)
+        }
+        Specification {
+            formulas: pair
+                .into_inner()
+                .map(AnnotatedFormulaParser::translate_pair)
+                .collect(),
+        }
+    }
+}
+
+pub struct SpecParser;
+
+impl PestParser for SpecParser {
+    type Node = Spec;
+
+    type InternalParser = internal::Parser;
+    type Rule = internal::Rule;
+    const RULE: Self::Rule = internal::Rule::spec;
+
+    fn translate_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> Self::Node {
+        match pair.as_rule() {
+            internal::Rule::spec => SpecParser::translate_pairs(pair.into_inner()),
+
+            internal::Rule::input => {
+                if pair.as_rule() != internal::Rule::input {
+                    Self::report_unexpected_pair(pair)
+                }
+
+                let mut pairs = pair.into_inner();
+
+                let first_predicate = pairs.next().unwrap_or_else(|| Self::report_missing_pair());
+                let remaining_predicates: Vec<_> =
+                    pairs.map(PredicateParser::translate_pair).collect();
+
+                let mut predicates = vec![PredicateParser::translate_pair(first_predicate)];
+                predicates.extend(remaining_predicates);
+
+                Spec::Input { predicates }
+            }
+            internal::Rule::output => {
+                if pair.as_rule() != internal::Rule::output {
+                    Self::report_unexpected_pair(pair)
+                }
+
+                let mut pairs = pair.into_inner();
+
+                let first_predicate = pairs.next().unwrap_or_else(|| Self::report_missing_pair());
+                let remaining_predicates: Vec<_> =
+                    pairs.map(PredicateParser::translate_pair).collect();
+
+                let mut predicates = vec![PredicateParser::translate_pair(first_predicate)];
+                predicates.extend(remaining_predicates);
+
+                Spec::Output { predicates }
+            }
+            internal::Rule::placeholder_declaration => {
+                if pair.as_rule() != internal::Rule::placeholder_declaration {
+                    Self::report_unexpected_pair(pair)
+                }
+
+                let mut pairs = pair.into_inner();
+
+                let first_placeholder = pairs.next().unwrap_or_else(|| Self::report_missing_pair());
+                let remaining_placeholders: Vec<_> =
+                    pairs.map(PlaceholderParser::translate_pair).collect();
+
+                let mut placeholders = vec![PlaceholderParser::translate_pair(first_placeholder)];
+                placeholders.extend(remaining_placeholders);
+
+                Spec::PlaceholderDeclaration { placeholders }
+            }
+            internal::Rule::annotated_formula => {
+                Spec::AnnotatedFormula(AnnotatedFormulaParser::translate_pair(pair))
+            }
+            _ => Self::report_unexpected_pair(pair),
+        }
+    }
+}
+
+pub struct UserGuideParser;
+
+impl PestParser for UserGuideParser {
+    type Node = UserGuide;
+
+    type InternalParser = internal::Parser;
+    type Rule = internal::Rule;
+    const RULE: Self::Rule = internal::Rule::user_guide;
+
+    fn translate_pair(pair: pest::iterators::Pair<'_, Self::Rule>) -> Self::Node {
+        if pair.as_rule() != internal::Rule::user_guide {
+            Self::report_unexpected_pair(pair)
+        }
+
+        let mut specs: Vec<Spec> = pair.into_inner().map(SpecParser::translate_pair).collect();
+
+        let mut input_predicates = vec![];
+        let mut output_predicates = vec![];
+        let mut assumptions = vec![];
+        let mut placeholders = vec![];
+        for s in specs.drain(..) {
+            match s {
+                Spec::Input { mut predicates } => {
+                    for p in predicates.drain(..) {
+                        input_predicates.push(p);
+                    }
+                }
+                Spec::Output { mut predicates } => {
+                    for p in predicates.drain(..) {
+                        output_predicates.push(p);
+                    }
+                }
+                Spec::AnnotatedFormula(f) => match f.role {
+                    Role::Assumption => assumptions.push(f),
+                    Role::Conjecture => Self::report_other_error(
+                        "A user guide should not contain conjectures.".to_string(),
+                    ),
+                    Role::Lemma => todo!(),
+                    Role::Definition => todo!(),
+                    Role::InductiveLemma => todo!(),
+                },
+                Spec::PlaceholderDeclaration {
+                    placeholders: mut spec_phs,
+                } => {
+                    for p in spec_phs.drain(..) {
+                        placeholders.push(p)
+                    }
+                }
+            }
+        }
+
+        UserGuide {
+            input_predicates,
+            output_predicates,
+            placeholders,
+            assumptions,
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 #[cfg(test)]
 mod tests {
     use {

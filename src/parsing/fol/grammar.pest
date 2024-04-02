@@ -131,7 +131,7 @@ annotated_formula = { role ~ direction? ~ formula_name? ~ ":" ~ formula ~ "." }
 
 specification = { (annotated_formula ~ ".")* ~ WHITESPACE* }
 
-placeholder = _{ symbolic_function_constant | integer_function_constant | general_function_constant }
+placeholder = { symbolic_function_constant | integer_function_constant | general_function_constant }
 
 spec = { input | output | placeholder_declaration | annotated_formula }
     input                   = { "input:" ~ predicate ~ ("," ~ predicate)* ~ "." }

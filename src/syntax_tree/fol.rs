@@ -643,6 +643,14 @@ impl_node!(Theory, Format, TheoryParser);
 
 ///////// Start of Control Language /////////
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct Placeholder {
+    pub name: String,
+    pub sort: Sort,
+}
+
+impl_node!(Placeholder, Format, PlaceholderParser);
+
 /// A Role dictates how a formula is used within a verification task
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Role {
@@ -689,7 +697,7 @@ impl_node!(AnnotatedFormula, Format, AnnotatedFormulaParser);
 pub struct UserGuide {
     pub input_predicates: Vec<Predicate>,
     pub output_predicates: Vec<Predicate>,
-    pub placeholders: Vec<FunctionConstant>,
+    pub placeholders: Vec<Placeholder>,
     pub assumptions: Vec<AnnotatedFormula>,
 }
 
@@ -700,7 +708,7 @@ impl_node!(UserGuide, Format, UserGuideParser);
 pub enum Spec {
     Input { predicates: Vec<Predicate> },
     Output { predicates: Vec<Predicate> },
-    PlaceholderDeclaration { placeholders: Vec<FunctionConstant> },
+    PlaceholderDeclaration { placeholders: Vec<Placeholder> },
     AnnotatedFormula(AnnotatedFormula),
 }
 
