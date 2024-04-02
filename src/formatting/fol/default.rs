@@ -349,6 +349,149 @@ impl Display for Format<'_, Theory> {
     }
 }
 
+impl Display for Format<'_, FormulaName> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            FormulaName(Some(s)) => write!(f, "{s}"),
+            FormulaName(None) => write!(f, "unnamed"),
+        }
+    }
+}
+
+impl Display for Format<'_, Placeholder> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let name = &self.0.name;
+        let sort = &self.0.sort;
+
+        // TODO - does this really make sense?
+        match sort {
+            Sort::General => write!(f, "{name}"),
+            Sort::Integer => write!(f, "{name}"),
+        }
+    }
+}
+
+impl Display for Format<'_, Direction> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Direction::Forward => write!(f, "forward")?,
+            Direction::Backward => write!(f, "backward")?,
+            Direction::Universal => write!(f, "universal")?,
+        }
+        Ok(())
+    }
+}
+
+impl Display for Format<'_, Role> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Role::Assumption => write!(f, "assumption")?,
+            Role::Conjecture => write!(f, "conjecture")?,
+            Role::Lemma => write!(f, "lemma")?,
+            Role::Definition => write!(f, "definition")?,
+            Role::InductiveLemma => write!(f, "inductive-lemma")?,
+        }
+        Ok(())
+    }
+}
+
+impl Display for Format<'_, AnnotatedFormula> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            AnnotatedFormula {
+                role,
+                direction,
+                name,
+                formula,
+            } => {
+                writeln!(
+                    f,
+                    "{}({})[{}]: {}.",
+                    Format(role),
+                    Format(direction),
+                    Format(name),
+                    Format(formula)
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Display for Format<'_, Spec> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Spec::Input { predicates } => {
+                let iter = predicates.iter().map(Format);
+                for pred in iter {
+                    writeln!(f, "input: {pred}.")?;
+                }
+                Ok(())
+            }
+            Spec::Output { predicates } => {
+                let iter = predicates.iter().map(Format);
+                for pred in iter {
+                    writeln!(f, "output: {pred}.")?;
+                }
+                Ok(())
+            }
+            Spec::PlaceholderDeclaration { placeholders } => {
+                for place in placeholders.iter() {
+                    let name = &place.name;
+                    match place.sort {
+                        Sort::General => writeln!(f, "input: {name} -> general."),
+                        Sort::Integer => writeln!(f, "input: {name} -> integer."),
+                    }?
+                }
+                Ok(())
+            }
+            Spec::AnnotatedFormula(formula) => writeln!(f, "{formula}"),
+        }
+    }
+}
+
+impl Display for Format<'_, Specification> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let specs = &self.0.formulas;
+        let iter = specs.iter().map(Format);
+        for spec in iter {
+            writeln!(f, "{spec}")?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for Format<'_, UserGuide> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let inputs = &self.0.input_predicates;
+        let outputs = &self.0.output_predicates;
+        let placeholders = &self.0.placeholders;
+        let assumptions = &self.0.assumptions;
+
+        let iter = inputs.iter().map(Format);
+        for i in iter {
+            write!(f, "{i}")?;
+        }
+
+        let iter = outputs.iter().map(Format);
+        for i in iter {
+            write!(f, "{i}")?;
+        }
+
+        let iter = placeholders.iter().map(Format);
+        for i in iter {
+            write!(f, "{i}")?;
+        }
+
+        let iter = assumptions.iter().map(Format);
+        for i in iter {
+            write!(f, "{i}")?;
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
