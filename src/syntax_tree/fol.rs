@@ -714,7 +714,7 @@ impl_node!(Spec, Format, SpecParser);
 /// A Specification defines additional assumptions and
 /// the conjectures against which a program is compared.
 /// It can also contain proof outline instructions (such as Definitions and Inductions),
-/// thus all helper files are Specifications.
+/// thus all proof outlines are Specifications.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Specification {
     pub formulas: Vec<AnnotatedFormula>,
