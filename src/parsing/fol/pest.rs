@@ -759,18 +759,20 @@ impl PestParser for UserGuideParser {
 mod tests {
     use {
         super::{
-            AtomParser, AtomicFormulaParser, BinaryConnectiveParser, BinaryOperatorParser,
-            ComparisonParser, FormulaParser, GeneralTermParser, GuardParser, IntegerTermParser,
-            PredicateParser, QuantificationParser, QuantifierParser, RelationParser,
-            SymbolicTermParser, TheoryParser, UnaryConnectiveParser, UnaryOperatorParser,
+            AnnotatedFormulaParser, AtomParser, AtomicFormulaParser, BinaryConnectiveParser,
+            BinaryOperatorParser, ComparisonParser, DirectionParser, FormulaParser,
+            GeneralTermParser, GuardParser, IntegerTermParser, PredicateParser,
+            QuantificationParser, QuantifierParser, RelationParser, RoleParser, SymbolicTermParser,
+            TheoryParser, UnaryConnectiveParser, UnaryOperatorParser, UserGuideEntryParser,
             VariableParser,
         },
         crate::{
             parsing::TestedParser,
             syntax_tree::fol::{
-                Atom, AtomicFormula, BinaryConnective, BinaryOperator, Comparison, Formula,
-                GeneralTerm, Guard, IntegerTerm, Predicate, Quantification, Quantifier, Relation,
-                Sort, SymbolicTerm, Theory, UnaryConnective, UnaryOperator, Variable,
+                AnnotatedFormula, Atom, AtomicFormula, BinaryConnective, BinaryOperator,
+                Comparison, Direction, Formula, FunctionConstant, GeneralTerm, Guard, IntegerTerm,
+                Predicate, Quantification, Quantifier, Relation, Role, Sort, SymbolicTerm, Theory,
+                UnaryConnective, UnaryOperator, UserGuideEntry, Variable,
             },
         },
         std::vec,
@@ -1525,5 +1527,146 @@ mod tests {
                 },
             ),
         ]);
+    }
+
+    #[test]
+    fn parse_role() {
+        RoleParser
+            .should_parse_into([
+                ("assumption", Role::Assumption),
+                ("spec", Role::Spec),
+                ("lemma", Role::Lemma),
+            ])
+            .should_reject(["axiom", "conjecture", "specification"]);
+    }
+
+    #[test]
+    fn parse_direction() {
+        DirectionParser.should_parse_into([
+            ("universal", Direction::Universal),
+            ("forward", Direction::Forward),
+            ("backward", Direction::Backward),
+        ]);
+    }
+
+    #[test]
+    fn parse_annotated_formula() {
+        AnnotatedFormulaParser.should_parse_into([
+            (
+                "assumption: p",
+                AnnotatedFormula {
+                    role: Role::Assumption,
+                    direction: Direction::Universal,
+                    name: String::new(),
+                    formula: "p".parse().unwrap(),
+                },
+            ),
+            (
+                "spec: p",
+                AnnotatedFormula {
+                    role: Role::Spec,
+                    direction: Direction::Universal,
+                    name: String::new(),
+                    formula: "p".parse().unwrap(),
+                },
+            ),
+            (
+                "lemma: p",
+                AnnotatedFormula {
+                    role: Role::Lemma,
+                    direction: Direction::Universal,
+                    name: String::new(),
+                    formula: "p".parse().unwrap(),
+                },
+            ),
+            (
+                "lemma(universal): p",
+                AnnotatedFormula {
+                    role: Role::Lemma,
+                    direction: Direction::Universal,
+                    name: String::new(),
+                    formula: "p".parse().unwrap(),
+                },
+            ),
+            (
+                "lemma(forward): p",
+                AnnotatedFormula {
+                    role: Role::Lemma,
+                    direction: Direction::Forward,
+                    name: String::new(),
+                    formula: "p".parse().unwrap(),
+                },
+            ),
+            (
+                "lemma(backward): p",
+                AnnotatedFormula {
+                    role: Role::Lemma,
+                    direction: Direction::Backward,
+                    name: String::new(),
+                    formula: "p".parse().unwrap(),
+                },
+            ),
+            (
+                "lemma[foo]: p",
+                AnnotatedFormula {
+                    role: Role::Lemma,
+                    direction: Direction::Universal,
+                    name: "foo".into(),
+                    formula: "p".parse().unwrap(),
+                },
+            ),
+            (
+                "lemma(backward)[foo]: p",
+                AnnotatedFormula {
+                    role: Role::Lemma,
+                    direction: Direction::Backward,
+                    name: "foo".into(),
+                    formula: "p".parse().unwrap(),
+                },
+            ),
+        ]);
+    }
+
+    #[test]
+    fn parse_specification() {
+        todo!()
+    }
+
+    #[test]
+    fn parse_user_guide_entry() {
+        UserGuideEntryParser
+            .should_parse_into([
+                (
+                    "input: n$i",
+                    UserGuideEntry::PlaceholderDeclaration(FunctionConstant {
+                        name: "n".into(),
+                        sort: Sort::Integer,
+                    }),
+                ),
+                (
+                    "input: prime/1",
+                    UserGuideEntry::InputPredicate(Predicate {
+                        symbol: "prime".into(),
+                        arity: 1,
+                    }),
+                ),
+                (
+                    "output: pred/2",
+                    UserGuideEntry::OutputPredicate(Predicate {
+                        symbol: "pred".into(),
+                        arity: 2,
+                    }),
+                ),
+                (
+                    "assumption: prime(2)",
+                    UserGuideEntry::AnnotatedFormula("prime/2".parse().unwrap()),
+                ),
+            ])
+            .should_reject(["output: n$i"]);
+    }
+
+    #[test]
+    fn parse_user_guide() {
+        todo!()
     }
 }

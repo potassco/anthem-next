@@ -818,4 +818,39 @@ mod tests {
             "p <- (q -> r)"
         );
     }
+
+    #[test]
+    fn format_theory() {
+        todo!()
+    }
+
+    #[test]
+    fn format_role() {
+        todo!()
+    }
+
+    #[test]
+    fn format_direction() {
+        todo!()
+    }
+
+    #[test]
+    fn format_annotated_formula() {
+        todo!()
+    }
+
+    #[test]
+    fn format_specification() {
+        todo!()
+    }
+
+    #[test]
+    fn format_user_guide_entry() {
+        todo!()
+    }
+
+    #[test]
+    fn format_user_guide() {
+        todo!()
+    }
 }
