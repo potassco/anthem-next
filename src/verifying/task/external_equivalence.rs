@@ -2,7 +2,10 @@ use {
     crate::{
         command_line::Decomposition,
         syntax_tree::{asp, fol},
-        verifying::{problem::Problem, task::Task},
+        verifying::{
+            problem::Problem,
+            task::{ProofOutline, Task},
+        },
     },
     either::Either,
     indexmap::IndexSet,
@@ -120,6 +123,9 @@ impl Task for ExternalEquivalenceTask {
     fn decompose(self) -> Result<Vec<Problem>, Self::Error> {
         self.ensure_input_and_output_predicates_are_disjoint()?;
         self.ensure_program_heads_do_not_contain_input_predicates()?;
+
+        let taken_predicates = self.user_guide.input_predicates();
+        let _proof_outline = ProofOutline::construct(self.proof_outline, taken_predicates);
         // TODO: Add more error handing
 
         todo!()

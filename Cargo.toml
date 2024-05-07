@@ -26,3 +26,4 @@ thiserror = "1"
 
 [dev-dependencies]
 assert_cmd = "2"
+frame-support = "33"
