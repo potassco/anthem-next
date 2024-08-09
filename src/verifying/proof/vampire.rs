@@ -1,5 +1,8 @@
 use {
-    crate::verifying::{problem::Problem, proof::{Prover, Report}},
+    crate::verifying::{
+        problem::Problem,
+        proof::{Prover, Report},
+    },
     std::{
         io::Write as _,
         process::{Command, Output, Stdio},
