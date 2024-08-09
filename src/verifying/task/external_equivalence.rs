@@ -3,6 +3,7 @@ use {
         command_line::Decomposition,
         convenience::{
             apply::Apply as _,
+            unbox::{fol::UnboxedFormula, Unbox as _},
             with_warnings::{Result, WithWarnings},
         },
         syntax_tree::{asp, fol},
@@ -223,23 +224,112 @@ impl TryFrom<fol::AnnotatedFormula> for GeneralLemma {
     }
 }
 
-#[derive(Error, Debug)]
+trait CheckInternal {
+    // Returns the predicate defined in the LHS of the formula if it is a valid definition, else returns an error
+    fn definition(
+        self,
+        taken_predicates: &IndexSet<fol::Predicate>,
+    ) -> std::result::Result<fol::Predicate, ProofOutlineError>;
+}
+
+impl CheckInternal for fol::Formula {
+    fn definition(
+        self,
+        taken_predicates: &IndexSet<fol::Predicate>,
+    ) -> std::result::Result<fol::Predicate, ProofOutlineError> {
+        let original = self.clone();
+        match self.unbox() {
+            UnboxedFormula::QuantifiedFormula {
+                quantification:
+                    fol::Quantification {
+                        quantifier: fol::Quantifier::Forall,
+                        variables,
+                    },
+                formula:
+                    fol::Formula::BinaryFormula {
+                        connective: fol::BinaryConnective::Equivalence,
+                        lhs,
+                        rhs,
+                    },
+            } => {
+                match lhs.unbox() {
+                    UnboxedFormula::AtomicFormula(fol::AtomicFormula::Atom(a)) => {
+                        // check variables has no duplicates
+                        let uniques: IndexSet<fol::Variable> =
+                            IndexSet::from_iter(variables.clone());
+                        if uniques.len() < variables.len() {
+                            return Err(ProofOutlineError::DuplicatedVariables(original));
+                        }
+
+                        // check predicate is totally fresh
+                        let predicate = a.predicate();
+                        if taken_predicates.contains(&predicate) {
+                            return Err(ProofOutlineError::TakenPredicate(predicate));
+                        }
+                        // check RHS has no free variables other than those in uniques
+                        if rhs.free_variables().difference(&uniques).count() > 0 {
+                            return Err(ProofOutlineError::FreeRhsVariables(original));
+                        }
+                        if uniques.difference(&rhs.free_variables()).count() > 0 {
+                            println!("Warning: The universally quantified list of vars contains members which do not occur in RHS.");
+                        }
+
+                        // check RHS has no predicates other than taken predicates
+                        // this should ensure no recursion through definition sequence
+                        if let Some(predicate) =
+                            rhs.predicates().difference(taken_predicates).next()
+                        {
+                            return Err(ProofOutlineError::UndefinedRhsPredicate {
+                                definition: original,
+                                predicate: predicate.clone(),
+                            });
+                        }
+
+                        Ok(predicate)
+                    }
+                    _ => Err(ProofOutlineError::MalformedDefinition(original)),
+                }
+            }
+            _ => Err(ProofOutlineError::MalformedDefinition(original)),
+        }
+    }
+}
+
+#[derive(Error, Debug, PartialEq)]
 pub enum ProofOutlineError {
     #[error("the following annotated formula has a role that is forbidden in proof outlines: {0}")]
     AnnotatedFormulaWithInvalidRole(fol::AnnotatedFormula),
+    #[error("the definition `{0}` contains duplicated variables in outermost quantification")]
+    DuplicatedVariables(fol::Formula),
+    #[error("predicate `{0}` is taken - definitions require fresh predicates")]
+    TakenPredicate(fol::Predicate),
+    #[error("the definition `{0}` contains free variables in the RHS")]
+    FreeRhsVariables(fol::Formula),
+    #[error("undefined predicate - {predicate:?} occurs for the first time in the RHS of definition {definition:?}")]
+    UndefinedRhsPredicate {
+        definition: fol::Formula,
+        predicate: fol::Predicate,
+    },
+    #[error("the definition `{0}` is malformed")]
+    MalformedDefinition(fol::Formula),
 }
 
 struct ProofOutline {
     pub forward_lemmas: Vec<GeneralLemma>,
     pub backward_lemmas: Vec<GeneralLemma>,
+    pub forward_definitions: Vec<fol::AnnotatedFormula>,
+    pub backward_definitions: Vec<fol::AnnotatedFormula>,
 }
 
 impl ProofOutline {
     fn from_specification(
         specification: fol::Specification,
+        mut taken_predicates: IndexSet<fol::Predicate>,
     ) -> std::result::Result<Self, ProofOutlineError> {
         let mut forward_lemmas = Vec::new();
         let mut backward_lemmas = Vec::new();
+        let mut forward_definitions = Vec::new();
+        let mut backward_definitions = Vec::new();
 
         for anf in specification.formulas {
             match anf.role {
@@ -252,7 +342,24 @@ impl ProofOutline {
                     fol::Direction::Forward => forward_lemmas.push(anf.try_into().unwrap()),
                     fol::Direction::Backward => backward_lemmas.push(anf.try_into().unwrap()),
                 },
-                fol::Role::Definition => todo!(),
+                fol::Role::Definition => {
+                    let predicate = anf.formula.clone().definition(&taken_predicates)?;
+                    taken_predicates.insert(predicate);
+                    match anf.direction {
+                        fol::Direction::Forward => {
+                            forward_definitions.push(anf.clone());
+                            //forward_definitions.push(AnnotatedFormula::from((anf.clone(), Role::Axiom)));
+                        }
+                        fol::Direction::Backward => {
+                            backward_definitions.push(anf.clone());
+                        }
+                        fol::Direction::Universal => {
+                            let f = anf.clone();
+                            forward_definitions.push(f.clone());
+                            backward_definitions.push(f);
+                        }
+                    }
+                }
                 fol::Role::Assumption | fol::Role::Spec => {
                     return Err(ProofOutlineError::AnnotatedFormulaWithInvalidRole(anf))
                 }
@@ -262,6 +369,8 @@ impl ProofOutline {
         Ok(ProofOutline {
             forward_lemmas,
             backward_lemmas,
+            forward_definitions,
+            backward_definitions,
         })
     }
 }
@@ -616,11 +725,19 @@ impl Task for ExternalEquivalenceTask {
             }
         }
 
+        let mut taken_predicates = self.user_guide.input_predicates();
+        for anf in left.formulas.clone() {
+            taken_predicates.extend(anf.formula.predicates());
+        }
+        for anf in right.formulas.clone() {
+            taken_predicates.extend(anf.formula.predicates());
+        }
+
         Ok(ValidatedExternalEquivalenceTask {
             left: left.formulas,
             right: right.formulas,
             user_guide_assumptions,
-            proof_outline: ProofOutline::from_specification(self.proof_outline)?,
+            proof_outline: ProofOutline::from_specification(self.proof_outline, taken_predicates)?,
             decomposition: self.decomposition,
             direction: self.direction,
             break_equivalences: self.break_equivalences,
@@ -752,6 +869,12 @@ impl Task for AssembledExternalEquivalenceTask {
         ) {
             let mut axioms = self.stable_premises.clone();
             axioms.extend(self.forward_premises.clone());
+            axioms.extend(
+                self.proof_outline
+                    .forward_definitions
+                    .into_iter()
+                    .map(|f| f.into_problem_formula(problem::Role::Axiom)),
+            );
 
             for (i, lemma) in self.proof_outline.forward_lemmas.iter().enumerate() {
                 for (j, conjecture) in lemma.conjectures.iter().enumerate() {
@@ -785,6 +908,12 @@ impl Task for AssembledExternalEquivalenceTask {
         ) {
             let mut axioms = self.stable_premises.clone();
             axioms.extend(self.backward_premises.clone());
+            axioms.extend(
+                self.proof_outline
+                    .backward_definitions
+                    .into_iter()
+                    .map(|f| f.into_problem_formula(problem::Role::Axiom)),
+            );
 
             for (i, lemma) in self.proof_outline.backward_lemmas.iter().enumerate() {
                 for (j, conjecture) in lemma.conjectures.iter().enumerate() {
@@ -813,5 +942,89 @@ impl Task for AssembledExternalEquivalenceTask {
         }
 
         Ok(WithWarnings::flawless(problems))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use {
+        super::{CheckInternal, ProofOutlineError},
+        crate::syntax_tree::fol,
+        indexmap::IndexSet,
+    };
+
+    #[test]
+    fn check_correct_definition() {
+        for (src, target) in [
+            (
+                "forall X ( p(X) <-> 1 < 2 )",
+                fol::Predicate {
+                    symbol: "p".to_string(),
+                    arity: 1,
+                },
+            ),
+            (
+                "forall X Y$i ( pred(X, Y$i) <-> exists N$i (X = N$i and t(X) or t(Y$i)) )",
+                fol::Predicate {
+                    symbol: "pred".to_string(),
+                    arity: 2,
+                },
+            ),
+        ] {
+            let taken_predicates: IndexSet<fol::Predicate> =
+                IndexSet::from_iter(vec![fol::Predicate {
+                    symbol: "t".to_string(),
+                    arity: 1,
+                }]);
+            let formula: fol::Formula = src.parse().unwrap();
+            assert_eq!(formula.definition(&taken_predicates).unwrap(), target)
+        }
+    }
+
+    #[test]
+    fn check_incorrect_definition() {
+        for (src, target) in [
+            (
+                "forall X Y X ( p(X) <-> 1 < 2 )",
+                ProofOutlineError::DuplicatedVariables(
+                    "forall X Y X ( p(X) <-> 1 < 2 )".parse().unwrap(),
+                ),
+            ),
+            (
+                "forall X ( t(X) <-> 1 < 2 )",
+                ProofOutlineError::TakenPredicate(fol::Predicate {
+                    symbol: "t".to_string(),
+                    arity: 1,
+                }),
+            ),
+            (
+                "forall Z1 Z2 ( ancestor(Z1, Z2) <-> t(X) and t(Z2) )",
+                ProofOutlineError::FreeRhsVariables(
+                    "forall Z1 Z2 ( ancestor(Z1, Z2) <-> t(X) and t(Z2) )"
+                        .parse()
+                        .unwrap(),
+                ),
+            ),
+            (
+                "forall Z1 Z2 ( ancestor(Z1, Z2) <-> ancestor(Z1, Z2) )",
+                ProofOutlineError::UndefinedRhsPredicate {
+                    definition: "forall Z1 Z2 ( ancestor(Z1, Z2) <-> ancestor(Z1, Z2) )"
+                        .parse()
+                        .unwrap(),
+                    predicate: fol::Predicate {
+                        symbol: "ancestor".to_string(),
+                        arity: 2,
+                    },
+                },
+            ),
+        ] {
+            let taken_predicates: IndexSet<fol::Predicate> =
+                IndexSet::from_iter(vec![fol::Predicate {
+                    symbol: "t".to_string(),
+                    arity: 1,
+                }]);
+            let formula: fol::Formula = src.parse().unwrap();
+            assert_eq!(formula.definition(&taken_predicates), Err(target))
+        }
     }
 }
