@@ -1,5 +1,5 @@
 use {
-    crate::verifying::problem::Problem,
+    crate::verifying::{problem::Problem, proof::{Prover, Report}},
     std::{
         io::Write as _,
         process::{Command, Output, Stdio},
@@ -21,10 +21,15 @@ pub struct VampireReport {
     pub output: Output,
 }
 
+impl Report for VampireReport {}
+
 pub struct Vampire;
 
-impl Vampire {
-    pub fn prove(&self, problem: Problem) -> Result<VampireReport, VampireError> {
+impl Prover for Vampire {
+    type Error = VampireError;
+    type Report = VampireReport;
+
+    fn prove(&self, problem: &Problem) -> Result<Self::Report, Self::Error> {
         let mut child = Command::new("vampire")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
