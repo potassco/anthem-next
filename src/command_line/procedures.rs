@@ -6,7 +6,10 @@ use {
             files::Files,
         },
         syntax_tree::{asp, fol, Node as _},
-        translating::{completion::completion, gamma::gamma, tau_star::tau_star},
+        translating::{
+            completion::completion, gamma::gamma, ordered_completion::ordered_completion,
+            tau_star::tau_star,
+        },
         verifying::{
             prover::{vampire::Vampire, Prover, Report, Status, Success},
             task::{
@@ -43,6 +46,14 @@ pub fn main() -> Result<()> {
                     let completed_theory =
                         completion(theory).context("the given theory is not completable")?;
                     print!("{completed_theory}")
+                }
+
+                Translation::OrderedCompletion => {
+                    let theory =
+                        input.map_or_else(fol::Theory::from_stdin, fol::Theory::from_file)?;
+                    let oc_theory = ordered_completion(theory)
+                        .context("the given theory is not completable")?;
+                    print!("{oc_theory}")
                 }
 
                 Translation::Gamma => {

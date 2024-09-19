@@ -96,6 +96,7 @@ pub enum Property {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum Translation {
     Completion,
+    OrderedCompletion,
     Gamma,
     TauStar,
 }
