@@ -42,7 +42,7 @@ pub fn completion(theory: fol::Theory) -> Option<fol::Theory> {
     Some(fol::Theory { formulas })
 }
 
-fn heads(definitions: &Definitions) -> IndexMap<fol::Predicate, Vec<&fol::AtomicFormula>> {
+pub fn heads(definitions: &Definitions) -> IndexMap<fol::Predicate, Vec<&fol::AtomicFormula>> {
     let mut result: IndexMap<_, Vec<_>> = IndexMap::new();
     for head in definitions.keys() {
         if let fol::AtomicFormula::Atom(a) = head {
@@ -61,7 +61,7 @@ fn heads(definitions: &Definitions) -> IndexMap<fol::Predicate, Vec<&fol::Atomic
     result
 }
 
-fn components(theory: fol::Theory) -> Option<(Definitions, Constraints)> {
+pub fn components(theory: fol::Theory) -> Option<(Definitions, Constraints)> {
     let mut definitions: Definitions = IndexMap::new();
     let mut constraints = Vec::new();
 
