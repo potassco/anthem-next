@@ -1,56 +1,108 @@
-use {
-    crate::{
-        syntax_tree::fol,
-        translating::completion::{components, heads},
+use crate::{
+    syntax_tree::fol::{
+        Atom, AtomicFormula, BinaryConnective, Formula, Quantifier, Theory, UnaryConnective,
     },
-    itertools::Itertools,
+    translating::completion::{components, no_head_mismatches},
 };
 
-pub fn ordered_completion(theory: fol::Theory) -> Option<fol::Theory> {
+pub fn ordered_completion(theory: Theory) -> Option<Theory> {
     let (definitions, constraints) = components(theory)?;
 
-    for (_, heads) in heads(&definitions) {
-        if !heads.iter().all_equal() {
-            return None;
-        }
+    if !no_head_mismatches(&definitions) {
+        return None;
     }
 
     let comp_rules = definitions.clone().into_iter().map(|(g, a)| {
         let v = g.variables();
-        fol::Formula::BinaryFormula {
-            connective: fol::BinaryConnective::ReverseImplication,
-            lhs: fol::Formula::AtomicFormula(g).into(),
-            rhs: fol::Formula::disjoin(a.into_iter().map(|f_i| {
+        Formula::BinaryFormula {
+            connective: BinaryConnective::ReverseImplication,
+            lhs: Formula::AtomicFormula(g).into(),
+            rhs: Formula::disjoin(a.into_iter().map(|f_i| {
                 let u_i = f_i.free_variables().difference(&v).cloned().collect();
-                f_i.quantify(fol::Quantifier::Exists, u_i)
+                f_i.quantify(Quantifier::Exists, u_i)
             }))
             .into(),
         }
-        .quantify(fol::Quantifier::Forall, v.into_iter().collect())
+        .quantify(Quantifier::Forall, v.into_iter().collect())
     });
 
     let ocomp_def = definitions.into_iter().map(|(g, a)| {
         let v = g.variables();
-        fol::Formula::BinaryFormula {
-            connective: fol::BinaryConnective::Implication,
-            lhs: fol::Formula::AtomicFormula(g).into(),
-            rhs: fol::Formula::disjoin(a.into_iter().map(|f_i| {
-                let u_i = f_i.free_variables().difference(&v).cloned().collect();
-                f_i.quantify(fol::Quantifier::Exists, u_i)
-            }))
-            .into(),
+        match g.clone() {
+            AtomicFormula::Atom(head_atom) => Formula::BinaryFormula {
+                connective: BinaryConnective::Implication,
+                lhs: Formula::AtomicFormula(g).into(),
+                rhs: Formula::disjoin(a.into_iter().map(|f_i| {
+                    let u_i = f_i.free_variables().difference(&v).cloned().collect();
+                    let f_i_order = conjoin_order_atom(f_i, head_atom.clone());
+                    f_i_order.quantify(Quantifier::Exists, u_i)
+                }))
+                .into(),
+            }
+            .quantify(Quantifier::Forall, v.into_iter().collect()),
+            _ => unreachable!(),
         }
-        .quantify(fol::Quantifier::Forall, v.into_iter().collect())
     });
 
     let mut formulas: Vec<_> = constraints
         .into_iter()
-        .map(fol::Formula::universal_closure)
+        .map(Formula::universal_closure)
         .collect();
     formulas.extend(comp_rules);
     formulas.extend(ocomp_def);
 
-    Some(fol::Theory { formulas })
+    Some(Theory { formulas })
+}
+
+fn conjoin_order_atom(formula: Formula, head_atom: Atom) -> Formula {
+    match formula {
+        Formula::AtomicFormula(AtomicFormula::Atom(a)) => {
+            let p = head_atom.predicate_symbol;
+            let mut xs = head_atom.terms;
+            let q = a.predicate_symbol.clone();
+            let mut zs = a.terms.clone();
+
+            let order_predicate = format!("less_{q}_{p}");
+            let mut order_terms = Vec::new();
+            order_terms.append(&mut zs);
+            order_terms.append(&mut xs);
+
+            let order_atom = Atom {
+                predicate_symbol: order_predicate,
+                terms: order_terms,
+            };
+
+            Formula::BinaryFormula {
+                connective: BinaryConnective::Conjunction,
+                lhs: Formula::AtomicFormula(AtomicFormula::Atom(a)).into(),
+                rhs: Formula::AtomicFormula(AtomicFormula::Atom(order_atom)).into(),
+            }
+        }
+        Formula::AtomicFormula(f) => Formula::AtomicFormula(f),
+        Formula::UnaryFormula {
+            connective: connective @ UnaryConnective::Negation,
+            formula,
+        } => Formula::UnaryFormula {
+            connective,
+            formula,
+        },
+        Formula::BinaryFormula {
+            connective,
+            lhs,
+            rhs,
+        } => Formula::BinaryFormula {
+            connective,
+            lhs: conjoin_order_atom(*lhs, head_atom.clone()).into(),
+            rhs: conjoin_order_atom(*rhs, head_atom).into(),
+        },
+        Formula::QuantifiedFormula {
+            quantification,
+            formula,
+        } => Formula::QuantifiedFormula {
+            quantification,
+            formula: conjoin_order_atom(*formula, head_atom).into(),
+        },
+    }
 }
 
 #[cfg(test)]

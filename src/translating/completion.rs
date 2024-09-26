@@ -11,6 +11,7 @@ pub fn completion(theory: fol::Theory) -> Option<fol::Theory> {
     // Retrieve the definitions and constraints
     let (definitions, constraints) = components(theory)?;
 
+    // Confirm there are no head mismatches
     if !no_head_mismatches(&definitions) {
         return None;
     }
@@ -40,8 +41,7 @@ pub fn completion(theory: fol::Theory) -> Option<fol::Theory> {
 }
 
 pub fn no_head_mismatches(definitions: &Definitions) -> bool {
-    // Confirm there are no head mismatches
-    for (_, heads) in heads(&definitions) {
+    for (_, heads) in heads(definitions) {
         if !heads.iter().all_equal() {
             return false;
         }
