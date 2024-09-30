@@ -1,6 +1,7 @@
 use crate::{
     syntax_tree::fol::{
-        Atom, AtomicFormula, BinaryConnective, Formula, Quantifier, Theory, UnaryConnective,
+        Atom, AtomicFormula, BinaryConnective, Formula, GeneralTerm, Predicate, Quantifier, Theory,
+        UnaryConnective,
     },
     translating::completion::{components, no_head_mismatches},
 };
@@ -54,7 +55,14 @@ pub fn ordered_completion(theory: Theory) -> Option<Theory> {
     Some(Theory { formulas })
 }
 
+fn order_predicate_symbol(p: String, q: String) -> String {
+    format!("less_{p}_{q}")
+}
+
 fn conjoin_order_atom(formula: Formula, head_atom: Atom) -> Formula {
+    // replace positive atoms (i.e. not in scope of any negation) q(zs) by the formula
+    // q(zs) and less_q_p(zs,xs)
+    // where p(xs) is the head_atom
     match formula {
         Formula::AtomicFormula(AtomicFormula::Atom(a)) => {
             let p = head_atom.predicate_symbol;
@@ -62,7 +70,7 @@ fn conjoin_order_atom(formula: Formula, head_atom: Atom) -> Formula {
             let q = a.predicate_symbol.clone();
             let mut zs = a.terms.clone();
 
-            let order_predicate = format!("less_{q}_{p}");
+            let order_predicate = order_predicate_symbol(q, p);
             let mut order_terms = Vec::new();
             order_terms.append(&mut zs);
             order_terms.append(&mut xs);
@@ -103,6 +111,70 @@ fn conjoin_order_atom(formula: Formula, head_atom: Atom) -> Formula {
             formula: conjoin_order_atom(*formula, head_atom).into(),
         },
     }
+}
+
+fn transitivity_axiom(p: Predicate, q: Predicate, r: Predicate) -> Formula {
+    // generate all variables
+    let vars: Vec<GeneralTerm> = (1..=p.arity + q.arity + r.arity)
+        .map(|i| GeneralTerm::Variable(format!("X{i}")))
+        .collect();
+    // split up into variables for p, q, r
+    let (p_vars, vars) = vars.split_at(p.arity);
+    let (q_vars, r_vars) = vars.split_at(q.arity);
+
+    // collect variables for less_p_q, less_q_r, less_p_r
+    let mut pq_vars = p_vars.to_vec().clone();
+    pq_vars.extend(q_vars.to_vec().clone());
+    let mut qr_vars = q_vars.to_vec();
+    qr_vars.extend(r_vars.to_vec().clone());
+    let mut pr_vars = p_vars.to_vec();
+    pr_vars.extend(r_vars.to_vec());
+
+    let less_pq = Formula::AtomicFormula(AtomicFormula::Atom(Atom {
+        predicate_symbol: order_predicate_symbol(p.symbol.clone(), q.symbol.clone()),
+        terms: pq_vars,
+    }));
+    let less_qr = Formula::AtomicFormula(AtomicFormula::Atom(Atom {
+        predicate_symbol: order_predicate_symbol(q.symbol, r.symbol.clone()),
+        terms: qr_vars,
+    }));
+    let less_pr = Formula::AtomicFormula(AtomicFormula::Atom(Atom {
+        predicate_symbol: order_predicate_symbol(p.symbol, r.symbol),
+        terms: pr_vars,
+    }));
+
+    let mut variables = less_pq.free_variables();
+    variables.extend(less_qr.free_variables());
+
+    Formula::BinaryFormula {
+        connective: BinaryConnective::Implication,
+        lhs: Box::new(Formula::BinaryFormula {
+            connective: BinaryConnective::Conjunction,
+            lhs: less_pq.into(),
+            rhs: less_qr.into(),
+        }),
+        rhs: less_pr.into(),
+    }
+    .quantify(Quantifier::Forall, variables.into_iter().collect())
+}
+
+fn irreflexivity_axiom(p: Predicate) -> Formula {
+    let mut terms: Vec<GeneralTerm> = (1..=p.arity)
+        .map(|i| GeneralTerm::Variable(format!("X{i}")))
+        .collect();
+    terms.extend(terms.clone());
+    let less_pp = Formula::AtomicFormula(AtomicFormula::Atom(Atom {
+        predicate_symbol: order_predicate_symbol(p.symbol.clone(), p.symbol),
+        terms,
+    }));
+
+    let variables = less_pp.free_variables();
+
+    Formula::UnaryFormula {
+        connective: UnaryConnective::Negation,
+        formula: less_pp.into(),
+    }
+    .quantify(Quantifier::Forall, variables.into_iter().collect())
 }
 
 #[cfg(test)]
