@@ -177,11 +177,36 @@ fn irreflexivity_axiom(p: Predicate) -> Formula {
     .quantify(Quantifier::Forall, variables.into_iter().collect())
 }
 
+pub fn oc_axioms(theory: Theory) -> Theory {
+    let mut axioms: Vec<Formula> = theory
+        .prediates()
+        .into_iter()
+        .map(irreflexivity_axiom)
+        .collect();
+
+    for p in theory.prediates() {
+        for q in theory.prediates() {
+            if p != q {
+                for r in theory.prediates() {
+                    if q != r {
+                        axioms.push(transitivity_axiom(p.clone(), q.clone(), r))
+                    }
+                }
+            }
+        }
+    }
+
+    Theory { formulas: axioms }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
         syntax_tree::fol,
-        translating::{ordered_completion::ordered_completion, tau_star::tau_star},
+        translating::{
+            ordered_completion::oc_axioms, ordered_completion::ordered_completion,
+            tau_star::tau_star,
+        },
     };
 
     #[test]
@@ -195,6 +220,24 @@ mod tests {
             ("t(X,Y) :- e(X,Y). t(X,Z) :- e(X,Y), t(Y,Z).", "forall V1 V2 (t(V1, V2) <- exists X Y (V1 = X and V2 = Y and exists Z Z1 (Z = X and Z1 = Y and e(Z, Z1))) or exists X Z Y (V1 = X and V2 = Z and (exists Z Z1 (Z = X and Z1 = Y and e(Z, Z1)) and exists Z1 Z2 (Z1 = Y and Z2 = Z and t(Z1, Z2))))). forall V1 V2 (t(V1, V2) -> exists X Y (V1 = X and V2 = Y and exists Z Z1 (Z = X and Z1 = Y and (e(Z, Z1) and less_e_t(Z, Z1, V1, V2)))) or exists X Z Y (V1 = X and V2 = Z and (exists Z Z1 (Z = X and Z1 = Y and (e(Z, Z1) and less_e_t(Z, Z1, V1, V2))) and exists Z1 Z2 (Z1 = Y and Z2 = Z and (t(Z1, Z2) and less_t_t(Z1, Z2, V1, V2))))))."),
         ] {
             let left = ordered_completion(tau_star(src.parse().unwrap())).unwrap();
+            let right = target.parse().unwrap();
+
+            assert!(
+                left == right,
+                "assertion `left == right` failed:\n left:\n{left}\n right:\n{right}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_oc_axioms() {
+        for (src, target) in [
+            ("p :- q.", "not less_q_q. not less_p_p. less_q_p and less_p_q -> less_q_q. less_p_q and less_q_p -> less_p_p."),
+            ("p(X) :- q.", "not less_q_q. forall X1 not less_p_p(X1, X1). forall X1 (less_q_p(X1) and less_p_q(X1) -> less_q_q). forall X1 X2 (less_p_q(X1) and less_q_p(X2) -> less_p_p(X1, X2))."),
+            ("p(X) :- q(X).", "forall X1 not less_q_q(X1, X1). forall X1 not less_p_p(X1, X1). forall X1 X2 X3 (less_q_p(X1, X2) and less_p_q(X2, X3) -> less_q_q(X1, X3)). forall X1 X2 X3 (less_p_q(X1, X2) and less_q_p(X2, X3) -> less_p_p(X1, X3))."),
+            ("p(X) :- q(X-1). {p(X)} :- r(X,Y).", "forall X1 not less_q_q(X1, X1). forall X1 not less_p_p(X1, X1). forall X1 X2 not less_r_r(X1, X2, X1, X2). forall X1 X2 X3 (less_q_p(X1, X2) and less_p_q(X2, X3) -> less_q_q(X1, X3)). forall X1 X2 X3 X4 (less_q_p(X1, X2) and less_p_r(X2, X3, X4) -> less_q_r(X1, X3, X4)). forall X1 X2 X3 X4 (less_q_r(X1, X2, X3) and less_r_q(X2, X3, X4) -> less_q_q(X1, X4)). forall X1 X2 X3 X4 (less_q_r(X1, X2, X3) and less_r_p(X2, X3, X4) -> less_q_p(X1, X4)). forall X1 X2 X3 (less_p_q(X1, X2) and less_q_p(X2, X3) -> less_p_p(X1, X3)). forall X1 X2 X3 X4 (less_p_q(X1, X2) and less_q_r(X2, X3, X4) -> less_p_r(X1, X3, X4)). forall X1 X2 X3 X4 (less_p_r(X1, X2, X3) and less_r_q(X2, X3, X4) -> less_p_q(X1, X4)). forall X1 X2 X3 X4 (less_p_r(X1, X2, X3) and less_r_p(X2, X3, X4) -> less_p_p(X1, X4)). forall X1 X2 X3 X4 (less_r_q(X1, X2, X3) and less_q_p(X3, X4) -> less_r_p(X1, X2, X4)). forall X1 X2 X3 X4 X5 (less_r_q(X1, X2, X3) and less_q_r(X3, X4, X5) -> less_r_r(X1, X2, X4, X5)). forall X1 X2 X3 X4 (less_r_p(X1, X2, X3) and less_p_q(X3, X4) -> less_r_q(X1, X2, X4)). forall X1 X2 X3 X4 X5 (less_r_p(X1, X2, X3) and less_p_r(X3, X4, X5) -> less_r_r(X1, X2, X4, X5))."),
+        ] {
+            let left = oc_axioms(tau_star(src.parse().unwrap()));
             let right = target.parse().unwrap();
 
             assert!(
