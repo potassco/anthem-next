@@ -876,6 +876,14 @@ pub struct Theory {
 impl_node!(Theory, Format, TheoryParser);
 
 impl Theory {
+    pub fn prediates(&self) -> IndexSet<Predicate> {
+        let mut preds = IndexSet::new();
+        for formula in self {
+            preds.extend(formula.predicates())
+        }
+        preds
+    }
+
     pub fn replace_placeholders(self, mapping: &IndexMap<String, FunctionConstant>) -> Self {
         self.into_iter()
             .map(|f| f.replace_placeholders(mapping))

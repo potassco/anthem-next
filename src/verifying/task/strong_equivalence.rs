@@ -28,29 +28,30 @@ pub struct StrongEquivalenceTask {
     pub break_equivalences: bool,
 }
 
+pub fn transition(p: fol::Predicate) -> fol::Formula {
+    let hp = gamma::here(p.clone().to_formula());
+    let tp = gamma::there(p.to_formula());
+
+    let variables = hp.free_variables();
+
+    fol::Formula::BinaryFormula {
+        connective: fol::BinaryConnective::Implication,
+        lhs: hp.into(),
+        rhs: tp.into(),
+    }
+    .quantify(fol::Quantifier::Forall, variables.into_iter().collect())
+}
+
 impl StrongEquivalenceTask {
     fn transition_axioms(&self) -> fol::Theory {
-        fn transition(p: asp::Predicate) -> fol::Formula {
-            let p: fol::Predicate = p.into();
-
-            let hp = gamma::here(p.clone().to_formula());
-            let tp = gamma::there(p.to_formula());
-
-            let variables = hp.free_variables();
-
-            fol::Formula::BinaryFormula {
-                connective: fol::BinaryConnective::Implication,
-                lhs: hp.into(),
-                rhs: tp.into(),
-            }
-            .quantify(fol::Quantifier::Forall, variables.into_iter().collect())
-        }
-
         let mut predicates = self.left.predicates();
         predicates.extend(self.right.predicates());
 
         fol::Theory {
-            formulas: predicates.into_iter().map(transition).collect(),
+            formulas: predicates
+                .into_iter()
+                .map(|p| transition(p.into()))
+                .collect(),
         }
     }
 }

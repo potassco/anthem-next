@@ -28,6 +28,14 @@ pub enum Command {
         #[arg(long, value_enum)]
         with: Translation,
 
+        /// Output format
+        #[arg(long, value_enum, default_value_t)]
+        format: Format,
+
+        /// Role of output formulas (only used for TPTP output)
+        #[arg(long, value_enum, default_value_t)]
+        role: Role,
+
         /// The file to translate
         input: Option<PathBuf>,
     },
@@ -98,6 +106,20 @@ pub enum Translation {
     Completion,
     Gamma,
     TauStar,
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum Format {
+    #[default]
+    Default,
+    TPTP,
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum Role {
+    #[default]
+    Axiom,
+    Conjecture,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
