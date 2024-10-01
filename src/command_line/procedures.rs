@@ -7,8 +7,8 @@ use {
         },
         syntax_tree::{asp, fol, Node as _},
         translating::{
-            completion::completion, gamma::gamma, ordered_completion::ordered_completion,
-            tau_star::tau_star,
+            completion::completion, gamma::gamma, ordered_completion::oc_axioms,
+            ordered_completion::ordered_completion, tau_star::tau_star,
         },
         verifying::{
             prover::{vampire::Vampire, Prover, Report, Status, Success},
@@ -51,8 +51,10 @@ pub fn main() -> Result<()> {
                 Translation::OrderedCompletion => {
                     let theory =
                         input.map_or_else(fol::Theory::from_stdin, fol::Theory::from_file)?;
+                    let axioms = oc_axioms(theory.clone());
                     let oc_theory = ordered_completion(theory)
                         .context("the given theory is not completable")?;
+                    println!("{axioms}");
                     print!("{oc_theory}")
                 }
 
